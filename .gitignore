@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+watchdog/watchdog.log
+watchdog/watchdog_last_seen.json
+watchdog/watchdog_state.json
+watchdog/notify_state.json
+data/*
+watchdog.json

@@ -1,0 +1,40 @@
+{
+  "heartbeat_data_dir": "~/.openclaw/workspace/heartbeat/data",
+  "watchdog_state_dir": "~/.openclaw/workspace/heartbeat/watchdog",
+  "expected_agents_mode": "auto",
+  "scan_interval_sec": 300,
+  "startup_grace_sec": 600,
+  "telegram_chat_id": "428798118",
+  "telegram_bot_token": null,
+  "log_file": "~/.openclaw/workspace/heartbeat/watchdog/watchdog.log",
+  "antiflap": {
+    "sustain_sec": {
+      "stall": 600,
+      "dead": 300,
+      "missing": 300,
+      "corrupt": 120,
+      "error": 60,
+      "ok": 120
+    },
+    "cooldown_sec": {
+      "stall": 1800,
+      "dead": 1800,
+      "missing": 1800,
+      "corrupt": 900,
+      "error": 900,
+      "ok": 300
+    }
+  },
+  "thresholds": {
+    "min_stall_sec": 600,
+    "expected_duration_multiplier": 1.5,
+    "dead_after_sec": 900,
+    "task_type_thresholds": {
+      "short_task": 600,
+      "normal_task": 1800,
+      "long_task": 3600,
+      "batch_task": 7200,
+      "default": 1800
+    }
+  }
+}
