@@ -345,19 +345,34 @@ def run_cycle(config: WatchdogConfig, logger: Logger, cycle_num: int) -> tuple[d
             continue
 
         agent_id = record.agent_id
+
+        # Step 1: read previous state BEFORE any mutation
+        try:
+            prev_state_obj = state_store.get(agent_id)
+        except Exception as e:
+            log.error("state", f"Failed to read prev state for {agent_id}: {e}")
+            prev_state_obj = None
+
+        # Step 2: classify with progress-stall detection against the PREVIOUS state
+        try:
+            current_state, last_progress_change_at = check_progress_stall(
+                record, prev_state_obj, now=now, thresholds=config.thresholds
+            )
+        except Exception as e:
+            log.error("state", f"Classification failed for {agent_id}: {e}")
+            continue
+
+        # Step 3: update state store
         try:
             agent_state = state_store.update(agent_id, record, now=now)
         except Exception as e:
             log.error("state", f"Failed to update state for {agent_id}: {e}")
             continue
 
-        try:
-            current_state, _ = check_progress_stall(
-                record, state_store.get(agent_id), now=now, thresholds=config.thresholds
-            )
-        except Exception as e:
-            log.error("state", f"Classification failed for {agent_id}: {e}")
-            continue
+        # If progress was not advancing, persist the original last_progress_change_at
+        # so that sustained stall tracking remains accurate across cycles.
+        if last_progress_change_at != now and prev_state_obj is not None:
+            agent_state.last_progress_change_at = last_progress_change_at
 
         try:
             antiflap.update_state(agent_state, current_state, now=now)
@@ -365,9 +380,9 @@ def run_cycle(config: WatchdogConfig, logger: Logger, cycle_num: int) -> tuple[d
             pass
 
         # Log state change
-        prev_state = agent_state.last_state if hasattr(agent_state, 'last_state') else "unknown"
+        prev_label = agent_state.last_state if hasattr(agent_state, 'last_state') else "unknown"
         if agent_state.sustained_state != current_state.value:
-            log.state_change(agent_id, prev_state, current_state.value)
+            log.state_change(agent_id, prev_label, current_state.value)
 
         # Check if we should alert (skip during startup grace for non-critical states)
         if startup_grace and current_state in (StallKind.MISSING, StallKind.DEAD, StallKind.STALL):
@@ -388,8 +403,9 @@ def run_cycle(config: WatchdogConfig, logger: Logger, cycle_num: int) -> tuple[d
             if record.last_error:
                 msg += f"\n⚠️ Error: {record.last_error}"
 
-            alerts_to_send.append((agent_id, msg))
-            log.alert_sent(agent_id, current_state.value)
+            # Stable dedup key: depends on agent + run + state, NOT on msg wording
+            dedup_key = f"{agent_id}:{record.run_id or 'none'}:{current_state.value}"
+            alerts_to_send.append((agent_id, msg, dedup_key))
             try:
                 agent_state.last_alert_sent_at[current_state.value] = now
                 if current_state == StallKind.OK and agent_state.last_state not in ("ok", "unknown"):
@@ -422,7 +438,9 @@ def run_cycle(config: WatchdogConfig, logger: Logger, cycle_num: int) -> tuple[d
                     known,
                     f"{STATE_LABELS[missing_state]} **{known}** (missing) — no heartbeat file found"
                 ))
-                log.alert_sent(known, "missing")
+                dedup_key = f"{known}:none:missing"
+                alerts_to_send.append((known, f"{STATE_LABELS[missing_state]} **{known}** (missing) — no heartbeat file found", dedup_key))
+                log.alert_sent(known, dedup_key)
                 try:
                     agent_state.last_alert_sent_at["missing"] = now
                 except Exception:
@@ -430,8 +448,10 @@ def run_cycle(config: WatchdogConfig, logger: Logger, cycle_num: int) -> tuple[d
 
     # Task watchdog: pending reply + active-task progress nags
     try:
-        alerts_to_send.extend(_check_pending_user_update(now, log))
-        alerts_to_send.extend(_check_active_task_progress(now, log))
+        for origin, msg in _check_pending_user_update(now, log):
+            alerts_to_send.append((origin, msg, "main-task-watch:pending-reply"))
+        for origin, msg in _check_active_task_progress(now, log):
+            alerts_to_send.append((origin, msg, "main-task-watch:active-stall"))
     except Exception as e:
         log.error("task-watch", f"Task watch checks failed: {e}")
 
@@ -491,8 +511,8 @@ def cmd_once(config: WatchdogConfig, logger: Logger) -> None:
 
     if alerts:
         notifier = TelegramNotifier(config, logger)
-        for agent_id, msg in alerts:
-            notifier.send(f"🔔 Watchdog Alert:\n{msg}", key=msg)
+        for agent_id, msg, dedup_key in alerts:
+            notifier.send(f"🔔 Watchdog Alert:\n{msg}", key=dedup_key)
 
 
 def cmd_loop(config: WatchdogConfig, logger: Logger) -> None:
@@ -517,8 +537,8 @@ def cmd_loop(config: WatchdogConfig, logger: Logger) -> None:
             )
 
             if alerts:
-                for _, msg in alerts:
-                    notifier.send(f"🔔 Watchdog Alert:\n{msg}", key=msg)
+                for _, msg, dedup_key in alerts:
+                    notifier.send(f"🔔 Watchdog Alert:\n{msg}", key=dedup_key)
         except Exception as e:
             logger.error("service", f"Cycle {cycle} crashed: {e}")
             # Don't crash the loop — log and continue
@@ -545,8 +565,8 @@ def cmd_report(config: WatchdogConfig, logger: Logger) -> None:
 
     if alerts:
         print(f"\n  Pending alerts: {len(alerts)}")
-        for agent_id, msg in alerts:
-            print(f"    -> {msg}")
+        for agent_id, msg, dedup_key in alerts:
+            print(f"    -> [{dedup_key}] {msg}")
     else:
         print("\n  No alerts pending ✅")
 

@@ -3,10 +3,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-WATCH_PATH = Path("/Users/openclaw/.openclaw/workspace/memory/main-task-watch.json")
+
+def resolve_watch_path() -> Path:
+    """Resolve task watch file path with env override support.
+    Priority: TASK_WATCH_PATH env → OPENCLAW_HOME → fallback default.
+    """
+    env = os.environ.get("TASK_WATCH_PATH")
+    if env:
+        return Path(env).expanduser()
+    home = os.environ.get("OPENCLAW_HOME") or Path.home()
+    return Path(home, ".openclaw", "workspace", "memory", "main-task-watch.json")
+
+
+WATCH_PATH = resolve_watch_path()
 
 
 def now_iso() -> str:

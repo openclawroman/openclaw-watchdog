@@ -352,7 +352,7 @@ def extended_report(
         if not record:
             continue
 
-        new_state = classify_state(record, thresholds=config.thresholds)
+        new_state, _ = check_progress_stall(record, prev, thresholds=config.thresholds)
         agent_state = state_store.get_or_create(agent_id)
         antiflap.update_state(agent_state, new_state)
 
