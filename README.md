@@ -23,3 +23,18 @@
 - Single-owner enforced via lock file and status-based gating.
 - Every spool task has an `idempotency_key` (chat_id:message_id) to prevent duplicates.
 
+
+## Configuration Knobs
+
+Environment variables or defaults in `config.py`:
+
+| Env var                   | Default | Description |
+|---------------------------|---------|-------------|
+| `RECOVERY_STALL_SEC`      | 900     | Seconds of no progress before recovery triggers |
+| `RECOVERY_GRACE_SEC`      | 45      | Grace period for SIGTERM before SIGKILL |
+| `MAX_AUTO_RETRIES_PER_TASK` | 1    | Maximum automatic retries per task |
+| `PROGRESS_HEARTBEAT_SEC`  | 120     | Expected progress interval for main task |
+| `MAIN_LOG_TAIL_LINES`     | 50      | Number of log lines to include in snapshot |
+
+Set these in the environment where `main_recovery.py` runs (e.g., in the LaunchAgent plist `<key>EnvironmentVariables</key>`).
+
