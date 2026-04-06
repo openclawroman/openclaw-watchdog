@@ -41,21 +41,50 @@ def default_state() -> dict:
         "pendingUserUpdate": False,
         "lastResultSummary": "",
         "alertedPendingReplyAt": "",
+        # Recovery fields
+        "recoveryStartedAt": "",
+        "retryCount": 0,
+        "recoveryReason": "",
+        # Task spool (full context)
+        "task_text": "",
+        "chat_id": "",
+        "message_id": "",
+        "update_id": "",
+        "attachments": [],
     }
 
 
 def load_state() -> dict:
     if WATCH_PATH.exists():
-        state = json.loads(WATCH_PATH.read_text())
-        merged = default_state()
-        merged.update(state)
-        return merged
-    return default_state()
+        try:
+            state = json.loads(WATCH_PATH.read_text())
+        except Exception:
+            state = {}
+    else:
+        state = {}
+    # Compatibility mapping for legacy status values
+    legacy = state.get("status", "")
+    if legacy == "active":
+        state["status"] = "running"
+    elif not legacy or legacy not in ("idle","running","verified","done","recovering","interrupted","blocked"):
+        state["status"] = "idle"
+    # Merge with defaults to ensure all keys present
+    merged = default_state()
+    merged.update(state)
+    return merged
 
 
 def save_state(state: dict) -> None:
     WATCH_PATH.parent.mkdir(parents=True, exist_ok=True)
-    WATCH_PATH.write_text(json.dumps(state, indent=2) + "\n")
+    # Atomic write via tempfile + os.replace
+    import tempfile as _tempfile
+    with _tempfile.NamedTemporaryFile(
+        "w", dir=WATCH_PATH.parent, delete=False
+    ) as tf:
+        json.dump(state, tf, indent=2)
+        tf.write("\n")
+        tf.flush()
+        os.replace(tf.name, WATCH_PATH)
 
 
 def mark_active(args: argparse.Namespace) -> None:
@@ -63,10 +92,20 @@ def mark_active(args: argparse.Namespace) -> None:
     ts = now_iso()
     state["active"] = True
     state["title"] = args.title or state.get("title", "")
-    state["status"] = args.status or "active"
+    state["status"] = args.status or "running"
     state["notes"] = args.note or state.get("notes", "")
     state["startedAt"] = state.get("startedAt") or ts
     state["lastProgressAt"] = ts
+    if args.task_text:
+        state["task_text"] = args.task_text
+    if args.chat_id:
+        state["chat_id"] = args.chat_id
+    if args.message_id:
+        state["message_id"] = args.message_id
+    if args.update_id:
+        state["update_id"] = args.update_id
+    if args.attachments:
+        state["attachments"] = args.attachments
     save_state(state)
     print("marked active")
 
@@ -157,8 +196,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     a = sub.add_parser("mark-active", help="Mark that a task became active")
     a.add_argument("--title")
-    a.add_argument("--status", default="active")
+    a.add_argument("--status", default="running")
     a.add_argument("--note")
+    a.add_argument("--task-text")
+    a.add_argument("--chat-id")
+    a.add_argument("--message-id")
+    a.add_argument("--update-id")
+    a.add_argument("--attachments", nargs='*', default=[])
     a.set_defaults(func=mark_active)
 
     pr = sub.add_parser("mark-progress", help="Refresh task progress and summary")
