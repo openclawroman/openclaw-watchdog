@@ -14,6 +14,16 @@ from spool import claim_next_queued, mark_started, mark_failed, SPOOL_DIR
 
 def dispatch_task(task_id: str, prompt: str) -> bool:
     """Spawn a main agent session with the given prompt."""
+    # Mark task active in task-watch with task_id for correlation
+    try:
+        task_watch_script = Path.home() / ".openclaw" / "workspace" / "heartbeat" / "task_watch.py"
+        subprocess.run(
+            ["python3", str(task_watch_script), "mark-active", "--task-id", task_id, "--task-text", prompt],
+            timeout=5,
+            check=False,
+        )
+    except Exception as e:
+        print(f"Warning: mark-active failed: {e}", file=sys.stderr)
     try:
         subprocess.run(
             ["openclaw", "sessions", "spawn", "--agent", "main", "--task", prompt],

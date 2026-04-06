@@ -3,6 +3,8 @@
 Atomic, file-based task queue for reliable replay.
 """
 
+from typing import Optional
+
 import json
 import os
 import uuid
@@ -48,7 +50,7 @@ def enqueue(prompt: str, chat_id: str, message_id: str, update_id: str, attachme
     atomic_write(path, entry)
     return entry
 
-def load(task_id: str) -> dict | None:
+def load(task_id: str) -> Optional[dict]:
     path = SPOOL_DIR / f"{task_id}.json"
     if not path.exists():
         return None
@@ -57,7 +59,7 @@ def load(task_id: str) -> dict | None:
     except Exception:
         return None
 
-def update(task_id: str, **updates) -> dict | None:
+def update(task_id: str, **updates) -> Optional[dict]:
     entry = load(task_id)
     if entry is None:
         return None
@@ -67,7 +69,7 @@ def update(task_id: str, **updates) -> dict | None:
     atomic_write(path, entry)
     return entry
 
-def claim_next_queued() -> dict | None:
+def claim_next_queued() -> Optional[dict]:
     """Find first entry with status='queued' and atomically mark it as 'claimed' to prevent multiple consumers."""
     # Scan directory for queued tasks
     try:
