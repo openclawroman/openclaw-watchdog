@@ -198,31 +198,32 @@ Edit `heartbeat/watchdog.json`:
 
 ## Optimizations (April 2026)
 
-### 1. Lightweight Heartbeat Model
+### 1. Heartbeat Model Isolation (Strict Ollama-Only)
+- Heartbeat daemon and watchdog **never** use OpenRouter or any external provider for heartbeat checks
+- Direct local HTTP to `http://127.0.0.1:11434` only; if Ollama is down, mark agents `degraded` and **do not** attempt alternative models
+- No fallback, no retry to external APIs; no shared queue/circuit breaker with user requests
+- This ensures heartbeat never triggers rate limits or external dependencies
+
+### 2. Lightweight Heartbeat Model
 - Created `qwen2.5:3b-hb` with `num_ctx=8192` (4× smaller than default 32K)
 - Reduces per-request CPU/RAM overhead while still fitting full heartbeat payloads
 - Model size: ~1.9GB, `num_predict=2048` sufficient for heartbeat responses
 
-### 2. Permanent Model Residency
+### 3. Permanent Model Residency
 - Set `OLLAMA_KEEP_ALIVE=-1` on the LaunchAgent
 - Model stays loaded in RAM indefinitely — no cold-start latency or cache misses
 - Verified via `curl /api/ps` shows `expires=2318` (far future)
 
-### 3. Staggered Heartbeat Intervals
+### 4. Staggered Heartbeat Intervals
 - Previously: all agents on 15m → simultaneous burst of 12+ requests (CPU overload)
 - Now: intervals spread across 18–21m window → ~3–4 agents per minute
 - Spread: 18m (researcher/orchestrator/lead/backlog), 19m (reviewer/planner/decompositor), 20m (critique/manager/main), 21m (coder/qa/gateway)
 - Peak concurrency reduced from ~12 to ~4 simultaneous requests
 
-### 4. Main Agent Heartbeat Enabled
+### 5. Main Agent Heartbeat Enabled
 - `main` agent now has explicit heartbeat config (previously inherited undefined)
 - Uses same `ollama/qwen2.5:3b-hb` with 20m interval
 - All 13 agents now monitored consistently
-
-### 5. Default Model Migration
-- `agents.defaults.model` → `openrouter/stepfun/step-3.5-flash:free`
-- Low-cost/free tier for day-to-day agent operations
-- Explicit models for coder/researcher/reviewer/critique remain unchanged (`openai-codex/gpt-5.4-mini`)
 
 ## Verifiable State
 
