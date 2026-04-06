@@ -232,6 +232,22 @@ Edit `heartbeat/watchdog.json`:
 - To re-enable: set `enable_telegram: true` and restart the watchdog LaunchAgent
 
 ### 7. Adaptive Reasoning Default
+
+### 8. Main Agent Auto-Recovery (Sidecar)
+- New daemon: `heartbeat/main_recovery.py` (LaunchAgent `ai.openclaw.main-recovery`)
+- Monitors `main-task-watch.json` for stalls (`lastProgressAt` > 600s)
+- On first stall: sets `status: recovering`, gracefully stops main (via `openclaw sessions cancel` or SIGTERM), requeues task, increments `retryCount`
+- On second stall: sends Telegram alert (if `enable_telegram`), sets `status: interrupted`, stops trying
+- Requires `task_text` populated at task start; falls back to reconstructing from `agents/main/sessions/*.jsonl` if missing
+- Uses same dedup keys; respects `enable_telegram` from `watchdog.json`
+
+### 9. Task Metadata Requirements
+- For reliable replay, call `task_watch mark-active` with:
+  `--task-text "<original instruction>"`
+  Optional: `--chat-id`, `--message-id`, `--update-id`, `--attachments <paths>`
+- Example: `task_watch mark-active --title "..." --task-text "..." --chat-id "428798118" --message-id "123"`
+- Without these, recovery falls back to session log reconstruction, which may be incomplete for multi-turn/tool tasks.
+
 - `agents.defaults.thinkingDefault: adaptive` — Step 3.5 Flash automatically adjusts reasoning depth per task
 - Low-cost for simple queries, deeper for complex analysis
 - Independent of heartbeat (heartbeat uses local Ollama without reasoning)
