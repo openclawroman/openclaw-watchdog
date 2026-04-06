@@ -186,8 +186,9 @@ Edit `heartbeat/watchdog.json`:
 | `watchdog_state_dir` | Where watchdog persists its own state        |
 | `scan_interval_sec`  | Seconds between scan cycles                  |
 | `startup_grace_sec`  | Initial period with suppressed alerts        |
-| `telegram_chat_id`   | Chat ID for alerts                           |
-| `telegram_bot_token` | Bot token (set for Telegram notifications)   |
+| `enable_telegram`    | Set `false` to disable all Telegram alerts   |
+| `telegram_chat_id`   | Chat ID for alerts (required if `enable_telegram=true`) |
+| `telegram_bot_token` | Bot token (required if `enable_telegram=true`) |
 
 ## LaunchAgents
 
@@ -224,6 +225,16 @@ Edit `heartbeat/watchdog.json`:
 - `main` agent now has explicit heartbeat config (previously inherited undefined)
 - Uses same `ollama/qwen2.5:3b-hb` with 20m interval
 - All 13 agents now monitored consistently
+
+### 6. Telegram Notifications Control (Watchdog)
+- Add `enable_telegram: false` to `watchdog.json` to suppress all Telegram alerts (`OK`, `Stall`, `Dead`, etc.)
+- Watchdog daemon continues to write logs and state; only Telegram output is disabled
+- To re-enable: set `enable_telegram: true` and restart the watchdog LaunchAgent
+
+### 7. Adaptive Reasoning Default
+- `agents.defaults.thinkingDefault: adaptive` — Step 3.5 Flash automatically adjusts reasoning depth per task
+- Low-cost for simple queries, deeper for complex analysis
+- Independent of heartbeat (heartbeat uses local Ollama without reasoning)
 
 ## Verifiable State
 
