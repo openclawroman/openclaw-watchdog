@@ -8,8 +8,8 @@ Custom heartbeat watchdog system for monitoring OpenClaw agent health. Runs loca
 ┌──────────────────────────┐    heartbeat/data/*.json    ┌─────────────────┐
 │  Heartbeat Daemon         │ ──────────────────────────→  │  Watchdog       │
 │  (LaunchAgent, 15min)    │   one JSON per agent         │  (loop, 5min)   │
-│  ollama qwen2.5:3b       │                               │  Telegram alert │
-│  $0 cost                 │                               └────────┬────────┘
+│  ollama qwen2.5:3b-hb    │                               │  Telegram alert │
+│  $0 cost • ctx=8K • KEEP_ALIVE=-1 │                      └────────┬────────┘
 └──────────────────────────┘                                        │
                                                                     ▼
                                                            Telegram bot message
@@ -23,10 +23,12 @@ Custom heartbeat watchdog system for monitoring OpenClaw agent health. Runs loca
 
 - Writes one `.json` heartbeat file per agent into `data/`
 - Runs every 15 min via macOS LaunchAgent (`ai.openclaw.heartbeat`, StartInterval=900s)
-- Staggered: 10 seconds between each agent (~130s total for 13 agents)
+- **Staggered**: agents fire across 4-minute window (~3–4 agents/min), not all at once
 - Checks local ollama (`http://127.0.0.1:11434/api/tags`) to verify it's alive
 - Counts `.jsonl` session files per agent → `progress_counter`
-- **Cost: $0** — ollama `qwen2.5:3b` locally, no paid APIs
+- **Cost: $0** — ollama `qwen2.5:3b-hb` locally, no paid APIs
+- **Lightweight model**: `num_ctx=8192` (4× smaller than default 32K)
+- **Permanent residency**: `OLLAMA_KEEP_ALIVE=-1` keeps model in RAM forever, no cold starts
 
 #### Layer 2: Heartbeat Data Files
 
@@ -194,13 +196,41 @@ Edit `heartbeat/watchdog.json`:
 | `ai.openclaw.heartbeat`        | `heartbeat-daemon.py`   | 15 min   |
 | `ai.openclaw.heartbeat-watchdog`| `watchdog.py --loop`   | persistent|
 
-## Fixes Applied
+## Optimizations (April 2026)
 
-1. **Stall detection order** — `check_progress_stall()` runs BEFORE `state_store.update()`, correctly reading previous state
-2. **Report/alert consistency** — both code paths use `check_progress_stall()`, no divergence
-3. **Normalized dedup keys** — state-based keys, not message text; cooldown survives wording changes
-4. **Portable paths** — `task_watch.py` uses `TASK_WATCH_PATH` env, no hardcoded paths
-5. **Schema alignment** — daemon output matches checker's `HeartbeatRecord` contract exactly
+### 1. Lightweight Heartbeat Model
+- Created `qwen2.5:3b-hb` with `num_ctx=8192` (4× smaller than default 32K)
+- Reduces per-request CPU/RAM overhead while still fitting full heartbeat payloads
+- Model size: ~1.9GB, `num_predict=2048` sufficient for heartbeat responses
+
+### 2. Permanent Model Residency
+- Set `OLLAMA_KEEP_ALIVE=-1` on the LaunchAgent
+- Model stays loaded in RAM indefinitely — no cold-start latency or cache misses
+- Verified via `curl /api/ps` shows `expires=2318` (far future)
+
+### 3. Staggered Heartbeat Intervals
+- Previously: all agents on 15m → simultaneous burst of 12+ requests (CPU overload)
+- Now: intervals spread across 18–21m window → ~3–4 agents per minute
+- Spread: 18m (researcher/orchestrator/lead/backlog), 19m (reviewer/planner/decompositor), 20m (critique/manager/main), 21m (coder/qa/gateway)
+- Peak concurrency reduced from ~12 to ~4 simultaneous requests
+
+### 4. Main Agent Heartbeat Enabled
+- `main` agent now has explicit heartbeat config (previously inherited undefined)
+- Uses same `ollama/qwen2.5:3b-hb` with 20m interval
+- All 13 agents now monitored consistently
+
+### 5. Default Model Migration
+- `agents.defaults.model` → `openrouter/stepfun/step-3.5-flash:free`
+- Low-cost/free tier for day-to-day agent operations
+- Explicit models for coder/researcher/reviewer/critique remain unchanged (`openai-codex/gpt-5.4-mini`)
+
+## Verifiable State
+
+Heartbeat daemon and watchdog validate model availability before each run.
+
+- Daemon: `ollama http check` → if down, marks agents `degraded` but doesn't crash
+- Watchdog: ignores missing/invalid heartbeat files gracefully
+- Each state change includes a stable 3‑tuple key: `(agent_id, run_id, state)` for dedup
 
 ## Safety
 
