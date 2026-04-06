@@ -36,5 +36,6 @@
       "batch_task": 7200,
       "default": 1800
     }
-  }
+  },
+  "enable_telegram": true
 }
