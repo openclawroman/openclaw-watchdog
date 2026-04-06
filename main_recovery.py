@@ -13,9 +13,17 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from config import heartbeat_cfg
+
 WATCH_PATH = Path(os.environ.get("TASK_WATCH_PATH", str(Path.home() / ".openclaw" / "workspace" / "memory" / "main-task-watch.json")))
 WATCHDOG_CONFIG = Path.home() / ".openclaw" / "workspace" / "heartbeat" / "watchdog.json"
-STALL_SEC = 600
+SPOOL_DIR = Path.home() / ".openclaw" / "workspace" / "state" / "telegram-task-spool"
+
+STALL_SEC = heartbeat_cfg.RECOVERY_STALL_SEC
+GRACE_SEC = heartbeat_cfg.RECOVERY_GRACE_SEC
+MAX_RETRIES = heartbeat_cfg.MAX_AUTO_RETRIES_PER_TASK
+LOG_TAIL = heartbeat_cfg.MAIN_LOG_TAIL_LINES
+
 LOCK_PATH = Path("/tmp/main-recovery.lock")
 
 
@@ -38,7 +46,7 @@ def load_state() -> dict:
         "notes": "", "alertedStallAt": "", "completedAt": "", "verifiedResultAt": "",
         "replySentAt": "", "pendingUserUpdate": False, "lastResultSummary": "",
         "alertedPendingReplyAt": "", "recoveryStartedAt": "", "retryCount": 0,
-        "recoveryReason": "", "task_text": "", "chat_id": "", "message_id": "",
+        "recoveryReason": "", "task_text": "", "task_id": "", "chat_id": "", "message_id": "",
         "update_id": "", "attachments": [],
     }
     for k, v in defaults.items():
@@ -46,14 +54,18 @@ def load_state() -> dict:
     return state
 
 
-def save_state(state: dict) -> None:
-    WATCH_PATH.parent.mkdir(parents=True, exist_ok=True)
+def atomic_write(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     import tempfile as _tempfile
-    with _tempfile.NamedTemporaryFile("w", dir=WATCH_PATH.parent, delete=False) as tf:
-        json.dump(state, tf, indent=2)
+    with _tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False) as tf:
+        json.dump(data, tf, indent=2)
         tf.write("\n")
         tf.flush()
-        os.replace(tf.name, WATCH_PATH)
+        os.replace(tf.name, path)
+
+
+def save_state(state: dict) -> None:
+    atomic_write(WATCH_PATH, state)
 
 
 def send_telegram_alert(text: str, config: dict) -> bool:
@@ -118,15 +130,15 @@ def capture_snapshot() -> str:
     try:
         log_path = Path.home() / ".openclaw" / "agents" / "main" / "main.log"
         if log_path.exists():
-            tail = subprocess.run(["tail", "-50", str(log_path)], capture_output=True, text=True, timeout=5)
-            lines.append("=== Last 50 lines of main.log ===")
+            tail = subprocess.run(["tail", f"-{LOG_TAIL}", str(log_path)], capture_output=True, text=True, timeout=5)
+            lines.append(f"=== Last {LOG_TAIL} lines of main.log ===")
             lines.append(tail.stdout.strip())
     except Exception:
         pass
     return "\n".join(lines)
 
 
-def stop_main_gracefully(timeout: int = 30) -> bool:
+def stop_main_gracefully(timeout: int = GRACE_SEC) -> bool:
     try:
         out = subprocess.check_output(["openclaw", "sessions", "list", "--agent", "main", "--json"], text=True, timeout=5)
         try:
@@ -204,7 +216,7 @@ def recover_task_text_from_sessions() -> str | None:
 
 def process_once() -> None:
     state = load_state()
-    if not state.get("active") or state.get("status") in ("done", "interrupted", "recovering", "blocked"):
+    if not state.get("active") or state.get("status") in ("done", "interrupted", "recovering", "blocked", "verified", "replied"):
         return
     last_progress = state.get("lastProgressAt", "")
     if not last_progress:
@@ -217,19 +229,20 @@ def process_once() -> None:
     if age <= STALL_SEC:
         return
     retry_count = int(state.get("retryCount", 0))
-    if retry_count >= 1:
-        state["status"] = "interrupted"
-        state["recoveryReason"] = "stall_after_retry"
-        save_state(state)
-        try:
-            cfg = json.loads(WATCHDOG_CONFIG.read_text()) if WATCHDOG_CONFIG.exists() else {}
-        except Exception:
-            cfg = {}
-        alert_text = f"🔴 Main agent stalled again (retryCount={retry_count}). Recovery stopped. Human intervention needed."
-        send_telegram_alert(alert_text, cfg)
-        print("Second stall; interrupted and alerted.")
+    if retry_count >= MAX_RETRIES:
+        # Already retried enough; mark interrupted if not already
+        if state.get("status") != "interrupted":
+            state["status"] = "interrupted"
+            state["recoveryReason"] = "max_retries_exceeded"
+            save_state(state)
+            try:
+                cfg = json.loads(WATCHDOG_CONFIG.read_text()) if WATCHDOG_CONFIG.exists() else {}
+            except Exception:
+                cfg = {}
+            alert_text = f"🔴 Main agent exceeded max retries ({MAX_RETRIES}). Task needs human intervention."
+            send_telegram_alert(alert_text, cfg)
         return
-    # First stall -> recovery
+    # First (or allowed) stall -> recovery
     print(f"Stall detected (age={age:.0f}s). Starting recovery (retryCount={retry_count}).")
     snapshot = capture_snapshot()
     print("--- Pre-recovery snapshot ---")
@@ -239,7 +252,7 @@ def process_once() -> None:
     state["recoveryReason"] = "stall"
     state["retryCount"] = retry_count + 1
     save_state(state)
-    stopped = stop_main_gracefully(timeout=30)
+    stopped = stop_main_gracefully(timeout=GRACE_SEC)
     if not stopped:
         print("Warning: main agent did not stop cleanly", file=sys.stderr)
     task_text = state.get("task_text", "") or recover_task_text_from_sessions() or ""
@@ -248,6 +261,7 @@ def process_once() -> None:
         print("Task requeued.")
     else:
         print("No task_text available to requeue.", file=sys.stderr)
+    # Reset progress timestamp after requeue to avoid immediate re-trigger
     state["lastProgressAt"] = now_iso()
     state["status"] = "running"
     save_state(state)
