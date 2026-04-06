@@ -270,3 +270,42 @@ Heartbeat daemon and watchdog validate model availability before each run.
 ## License
 
 MIT
+
+## Main Agent Graceful Shutdown (B2)
+
+The main agent itself should trap SIGTERM and perform graceful shutdown:
+
+- Stop accepting new work
+- Mark task as `recovering` or `interrupted` via `task_watch`
+- Flush partial state
+- Cancel/await in-flight async tasks where possible
+- Update mirrored task-watch state
+- Exit cleanly
+
+Example pattern for a Python-based agent:
+
+```python
+import signal, sys, subprocess, os
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+
+WATCH_PATH = Path.home() / ".openclaw" / "workspace" / "memory" / "main-task-watch.json"
+
+def handle_sigterm(signum, frame):
+    # Mark task as interrupted/recovering
+    state = {}
+    try:
+        state = json.loads(WATCH_PATH.read_text())
+    except: pass
+    state["status"] = "recovering"
+    state["recoveryReason"] = "SIGTERM"
+    state["recoveryStartedAt"] = datetime.now(timezone.utc).isoformat().replace("+00:00","Z")
+    WATCH_PATH.write_text(json.dumps(state, indent=2))
+    # Perform cleanup, cancel async tasks, flush state...
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, handle_sigterm)
+```
+
+Adapt to your agent’s language/runtime.
