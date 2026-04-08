@@ -10,10 +10,8 @@ import os
 import json
 import tempfile
 from typing import Optional
-try:
-    from heartbeat.config import HeartbeatRecord
-except ImportError:  # pragma: no cover - fallback for direct script use
-    from config import HeartbeatRecord
+
+from heartbeat.config import HeartbeatRecord
 
 
 class HeartbeatWriter:

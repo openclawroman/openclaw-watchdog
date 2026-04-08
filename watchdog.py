@@ -61,6 +61,7 @@ PLIST_PATH = os.path.join(HOME, "Library/LaunchAgents", f"{PLIST_ID}.plist")
 LOG_PATH = os.path.join(HOME, ".openclaw/workspace/heartbeat/watchdog/watchdog.log")
 SELF_HB_PATH = os.path.join(HOME, ".openclaw/workspace/heartbeat/watchdog/watchdog_last_seen.json")
 MAIN_TASK_WATCH_PATH = os.path.join(HOME, ".openclaw/workspace/memory/main-task-watch.json")
+WATCH_PATH = MAIN_TASK_WATCH_PATH
 PENDING_REPLY_ALERT_SEC = 300
 ACTIVE_PROGRESS_ALERT_SEC = 300
 
@@ -212,9 +213,9 @@ def cmd_status() -> None:
 # ---------------------------------------------------------------------------
 def _load_main_task_watch(logger: Logger) -> dict | None:
     try:
-        if not os.path.exists(MAIN_TASK_WATCH_PATH):
+        if not os.path.exists(WATCH_PATH):
             return None
-        with open(MAIN_TASK_WATCH_PATH) as f:
+        with open(WATCH_PATH) as f:
             return json.load(f)
     except Exception as e:
         logger.error("task-watch", f"Failed to read main-task-watch.json: {e}")
@@ -223,7 +224,7 @@ def _load_main_task_watch(logger: Logger) -> dict | None:
 
 def _save_main_task_watch(data: dict, logger: Logger) -> None:
     try:
-        with open(MAIN_TASK_WATCH_PATH, "w") as f:
+        with open(WATCH_PATH, "w") as f:
             json.dump(data, f, indent=2)
             f.write("\n")
     except Exception as e:

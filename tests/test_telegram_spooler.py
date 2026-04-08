@@ -32,7 +32,7 @@ def test_dispatch_logs_mark_active_and_openclaw_failure(tmp_path, monkeypatch, c
         calls.append(cmd)
         if cmd[0] == "task_watch":
             return subprocess.CompletedProcess(cmd, 0, stdout="marked active\n", stderr="")
-        raise subprocess.CalledProcessError(7, cmd, stdout="", stderr="spawn task_watch ENOENT")
+        raise subprocess.CalledProcessError(7, cmd, output="", stderr="spawn task_watch ENOENT")
 
     monkeypatch.setattr(telegram_spooler.subprocess, "run", fake_run)
 
