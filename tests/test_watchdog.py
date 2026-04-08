@@ -1,5 +1,6 @@
 """Tests for watchdog suppression of alerts during recovering"""
 
+import json
 import time
 
 def test_active_task_progress_suppressed_when_recovering(monkeypatch, tmp_path):

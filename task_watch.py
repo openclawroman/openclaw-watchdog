@@ -26,6 +26,17 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def atomic_write(path: Path, data: dict) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    import tempfile as _tempfile
+    with _tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False) as tf:
+        json.dump(data, tf, indent=2)
+        tf.write("\n")
+        tf.flush()
+        os.replace(tf.name, path)
+
+
 def default_state() -> dict:
     return {
         "active": False,
@@ -47,6 +58,7 @@ def default_state() -> dict:
         "recoveryReason": "",
         # Task spool (full context)
         "task_text": "",
+        "task_id": "",
         "chat_id": "",
         "message_id": "",
         "update_id": "",
@@ -75,16 +87,7 @@ def load_state() -> dict:
 
 
 def save_state(state: dict) -> None:
-    WATCH_PATH.parent.mkdir(parents=True, exist_ok=True)
-    # Atomic write via tempfile + os.replace
-    import tempfile as _tempfile
-    with _tempfile.NamedTemporaryFile(
-        "w", dir=WATCH_PATH.parent, delete=False
-    ) as tf:
-        json.dump(state, tf, indent=2)
-        tf.write("\n")
-        tf.flush()
-        os.replace(tf.name, WATCH_PATH)
+    atomic_write(WATCH_PATH, state)
 
 
 def mark_active(args: argparse.Namespace) -> None:
@@ -98,6 +101,8 @@ def mark_active(args: argparse.Namespace) -> None:
     state["lastProgressAt"] = ts
     if args.task_text:
         state["task_text"] = args.task_text
+    if args.task_id:
+        state["task_id"] = args.task_id
     if args.chat_id:
         state["chat_id"] = args.chat_id
     if args.message_id:
@@ -191,7 +196,10 @@ def clear_pending(_: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Update memory/main-task-watch.json")
+    p = argparse.ArgumentParser(
+        prog="task_watch",
+        description="Update memory/main-task-watch.json",
+    )
     sub = p.add_subparsers(dest="cmd", required=True)
 
     a = sub.add_parser("mark-active", help="Mark that a task became active")
@@ -199,6 +207,7 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--status", default="running")
     a.add_argument("--note")
     a.add_argument("--task-text")
+    a.add_argument("--task-id")
     a.add_argument("--chat-id")
     a.add_argument("--message-id")
     a.add_argument("--update-id")
@@ -236,7 +245,11 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     args.func(args)
+
+
+if __name__ == "__main__":
+    main()

@@ -14,8 +14,15 @@ import time
 import urllib.request
 import urllib.error
 from typing import Optional
-from .config import WatchdogConfig
-from .logging import Logger
+try:
+    from heartbeat.config import WatchdogConfig
+except ImportError:  # pragma: no cover - fallback for direct script use
+    from config import WatchdogConfig
+
+try:
+    from heartbeat.logging import Logger
+except ImportError:  # pragma: no cover - fallback for direct script use
+    from logging import Logger
 
 
 class TelegramNotifier:

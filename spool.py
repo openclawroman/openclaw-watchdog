@@ -32,6 +32,7 @@ def enqueue(prompt: str, chat_id: str, message_id: str, update_id: str, attachme
         "task_id": task_id,
         "idempotency_key": idempotency_key,
         "telegram_update_id": update_id,
+        "update_id": update_id,
         "chat_id": chat_id,
         "message_id": message_id,
         "prompt": prompt,
@@ -44,6 +45,9 @@ def enqueue(prompt: str, chat_id: str, message_id: str, update_id: str, attachme
         "completed_at": "",
         "last_error": "",
         "diagnostic_snapshot": None,
+        "handoff_id": "",
+        "thread_id": "",
+        "session_id": "",
     }
     entry["updated_at"] = entry["created_at"]
     path = SPOOL_DIR / f"{task_id}.json"

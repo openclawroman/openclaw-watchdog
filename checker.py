@@ -14,15 +14,26 @@ import os
 import json
 import time
 from typing import Optional
-from .config import (
-    HeartbeatRecord,
-    StallKind,
-    STATE_LABELS,
-    AgentState,
-    WatchdogConfig,
-    ThresholdConfig,
-    AntiFlapConfig,
-)
+try:
+    from heartbeat.config import (
+        HeartbeatRecord,
+        StallKind,
+        STATE_LABELS,
+        AgentState,
+        WatchdogConfig,
+        ThresholdConfig,
+        AntiFlapConfig,
+    )
+except ImportError:  # pragma: no cover - fallback for direct script use
+    from config import (
+        HeartbeatRecord,
+        StallKind,
+        STATE_LABELS,
+        AgentState,
+        WatchdogConfig,
+        ThresholdConfig,
+        AntiFlapConfig,
+    )
 
 
 # ---------------------------------------------------------------------------
