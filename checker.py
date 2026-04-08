@@ -14,7 +14,8 @@ import os
 import json
 import time
 from typing import Optional
-from .config import (
+
+from heartbeat.config import (
     HeartbeatRecord,
     StallKind,
     STATE_LABELS,

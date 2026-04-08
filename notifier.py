@@ -14,8 +14,9 @@ import time
 import urllib.request
 import urllib.error
 from typing import Optional
-from .config import WatchdogConfig
-from .logging import Logger
+
+from heartbeat.config import WatchdogConfig
+from heartbeat.logging import Logger
 
 
 class TelegramNotifier:

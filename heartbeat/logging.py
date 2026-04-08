@@ -1,19 +1,13 @@
-"""Heartbeat Watchdog v2.2 — Structured Logger (Phase 3).
-
-Logs to file and stdout with format:
-  YYYY-MM-DDTHH:MM:SSZ [level] [component] message
-Components: scan, state, alert, self, error, notifier, service
-"""
+"""Heartbeat watchdog logging shim."""
 
 from __future__ import annotations
 
 import os
-import sys
-import time
 from datetime import datetime, timezone
 from typing import Optional
 
 LEVELS = {"info": 0, "warn": 1, "error": 2}
+
 
 class Logger:
     def __init__(self, log_file: Optional[str] = None, min_level: str = "info"):
@@ -47,7 +41,7 @@ class Logger:
         self._write("error", component, msg)
 
     def state_change(self, agent_id: str, old: str, new: str):
-        self.info("state", f"{agent_id}: {old} → {new}")
+        self.info("state", f"{agent_id}: {old} -> {new}")
 
     def alert_sent(self, agent_id: str, state: str):
         self.info("alert", f"SENT {state} for {agent_id}")

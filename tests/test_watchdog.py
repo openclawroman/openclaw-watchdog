@@ -1,10 +1,12 @@
 """Tests for watchdog suppression of alerts during recovering"""
 
+import json
 import time
+
+from watchdog import _check_active_task_progress
 
 def test_active_task_progress_suppressed_when_recovering(monkeypatch, tmp_path):
     # Simulate main-task-watch.json with status='recovering'
-    from watchdog import _check_active_task_progress, _load_main_task_watch, _save_main_task_watch
     # Create a temporary watch file
     watch_file = tmp_path / "main-task-watch.json"
     state = {

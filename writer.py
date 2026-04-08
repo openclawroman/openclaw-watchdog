@@ -10,7 +10,8 @@ import os
 import json
 import tempfile
 from typing import Optional
-from .config import HeartbeatRecord
+
+from heartbeat.config import HeartbeatRecord
 
 
 class HeartbeatWriter:
