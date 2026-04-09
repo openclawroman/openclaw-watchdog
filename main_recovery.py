@@ -15,8 +15,24 @@ from pathlib import Path
 
 from config import heartbeat_cfg
 
-WATCH_PATH = Path(os.environ.get("TASK_WATCH_PATH", str(Path.home() / ".openclaw" / "workspace" / "memory" / "main-task-watch.json")))
-WATCHDOG_CONFIG = Path.home() / ".openclaw" / "workspace" / "heartbeat" / "watchdog.json"
+OPENCLAW_HOME = Path.home() / ".openclaw"
+WATCH_PATH = Path(os.environ.get("TASK_WATCH_PATH", str(OPENCLAW_HOME / "workspace" / "memory" / "main-task-watch.json")))
+
+
+def resolve_watchdog_config() -> Path:
+    env = os.environ.get("WATCHDOG_CONFIG_PATH")
+    if env:
+        return Path(env).expanduser()
+    canonical = OPENCLAW_HOME / "watchdog.json"
+    legacy = OPENCLAW_HOME / "workspace" / "heartbeat" / "watchdog.json"
+    if canonical.exists():
+        return canonical
+    if legacy.exists():
+        return legacy
+    return canonical
+
+
+WATCHDOG_CONFIG = resolve_watchdog_config()
 SPOOL_DIR = Path.home() / ".openclaw" / "workspace" / "state" / "telegram-task-spool"
 
 STALL_SEC = heartbeat_cfg.RECOVERY_STALL_SEC

@@ -1,4 +1,11 @@
 
+## Watchdog Runtime
+
+- Canonical live config: `~/.openclaw/watchdog.json`
+- Legacy fallback: `~/.openclaw/workspace/heartbeat/watchdog.json`
+- The watchdog and recovery sidecar both read the same config and continue to use `memory/main-task-watch.json` as the task-watch source of truth.
+- Install or relaunch the service with the canonical path so launchd follows the same config the runtime expects.
+
 ## Telegram Task Spool (Workstream C)
 
 - Spool directory: `~/.openclaw/workspace/state/telegram-task-spool/`
@@ -37,4 +44,3 @@ Environment variables or defaults in `config.py`:
 | `MAIN_LOG_TAIL_LINES`     | 50      | Number of log lines to include in snapshot |
 
 Set these in the environment where `main_recovery.py` runs (e.g., in the LaunchAgent plist `<key>EnvironmentVariables</key>`).
-

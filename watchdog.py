@@ -55,6 +55,7 @@ __version__ = "2.2"
 __phase__ = "3 — service + self-monitoring + hardening"
 PLIST_ID = "ai.openclaw.heartbeat-watchdog"
 HOME = os.path.expanduser("~")
+OPENCLAW_HOME = os.path.join(HOME, ".openclaw")
 WATCHDOG_DIR = os.path.join(HOME, ".openclaw/workspace/heartbeat")
 WATCHDOG_PY = os.path.join(WATCHDOG_DIR, "watchdog.py")
 PLIST_PATH = os.path.join(HOME, "Library/LaunchAgents", f"{PLIST_ID}.plist")
@@ -62,6 +63,8 @@ LOG_PATH = os.path.join(HOME, ".openclaw/workspace/heartbeat/watchdog/watchdog.l
 SELF_HB_PATH = os.path.join(HOME, ".openclaw/workspace/heartbeat/watchdog/watchdog_last_seen.json")
 MAIN_TASK_WATCH_PATH = os.path.join(HOME, ".openclaw/workspace/memory/main-task-watch.json")
 WATCH_PATH = MAIN_TASK_WATCH_PATH
+CANONICAL_CONFIG_PATH = os.path.join(OPENCLAW_HOME, "watchdog.json")
+LEGACY_CONFIG_PATH = os.path.join(WATCHDOG_DIR, "watchdog.json")
 PENDING_REPLY_ALERT_SEC = 300
 ACTIVE_PROGRESS_ALERT_SEC = 300
 
@@ -98,7 +101,7 @@ def _generate_plist(config: WatchdogConfig) -> str:
         <string>{WATCHDOG_PY}</string>
         <string>--loop</string>
         <string>--config</string>
-        <string>{os.path.join(WATCHDOG_DIR, "watchdog.json")}</string>
+        <string>{CANONICAL_CONFIG_PATH}</string>
     </array>
     <key>WorkingDirectory</key>
     <string>{WATCHDOG_DIR}</string>
@@ -124,6 +127,16 @@ def _generate_plist(config: WatchdogConfig) -> str:
 </dict>
 </plist>
 '''
+
+
+def _resolve_config_path(path: str | None) -> str:
+    if path:
+        return os.path.expanduser(path)
+    if os.path.exists(CANONICAL_CONFIG_PATH):
+        return CANONICAL_CONFIG_PATH
+    if os.path.exists(LEGACY_CONFIG_PATH):
+        return LEGACY_CONFIG_PATH
+    return CANONICAL_CONFIG_PATH
 
 
 def cmd_install(config: WatchdogConfig) -> bool:
@@ -621,7 +634,7 @@ def main() -> None:
     group.add_argument("--status", action="store_true", help="Check service status")
 
     args = parser.parse_args()
-    config = WatchdogConfig.from_file(args.config)
+    config = WatchdogConfig.from_file(_resolve_config_path(args.config))
     logger = Logger(log_file=config.log_file)
 
     if args.status:
