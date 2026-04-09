@@ -226,6 +226,7 @@ class WatchdogConfig:
     antiflap: AntiFlapConfig = field(default_factory=AntiFlapConfig)
     thresholds: ThresholdConfig = field(default_factory=ThresholdConfig)
     enable_telegram: bool = True
+    show_ok: bool = False
     _loaded_at: float = field(default_factory=time.time, repr=False)
 
     def __post_init__(self) -> None:
@@ -249,6 +250,7 @@ class WatchdogConfig:
             telegram_bot_token=raw.get("telegram_bot_token"),
             log_file=raw.get("log_file", cls.log_file),
             enable_telegram=bool(raw.get("enable_telegram", True)),
+            show_ok=bool(raw.get("show_ok", raw.get("showOk", False))),
         )
         thresholds = raw.get("thresholds", {})
         if thresholds:

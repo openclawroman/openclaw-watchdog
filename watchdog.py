@@ -411,6 +411,10 @@ def run_cycle(config: WatchdogConfig, logger: Logger, cycle_num: int) -> tuple[d
             should_send = False
 
         if should_send:
+            if current_state == StallKind.OK and not config.show_ok:
+                log.alert_suppressed(agent_id, current_state.value, "show_ok disabled")
+                continue
+
             label = STATE_LABELS.get(current_state, current_state.value)
             task_info = f" task={record.task_id}" if record.task_id else ""
             msg = f"{label} **{agent_id}**{task_info}"

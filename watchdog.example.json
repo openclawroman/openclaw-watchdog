@@ -6,6 +6,7 @@
   "startup_grace_sec": 600,
   "telegram_chat_id": "428798118",
   "telegram_bot_token": null,
+  "show_ok": false,
   "log_file": "~/.openclaw/workspace/heartbeat/watchdog/watchdog.log",
   "antiflap": {
     "sustain_sec": {

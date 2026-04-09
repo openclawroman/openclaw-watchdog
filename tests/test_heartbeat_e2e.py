@@ -18,6 +18,7 @@ def _write_config(path: Path, *, data_dir: Path, state_dir: Path, log_file: Path
         "scan_interval_sec": 300,
         "startup_grace_sec": 600,
         "enable_telegram": False,
+        "show_ok": False,
         "telegram_bot_token": None,
         "telegram_chat_id": telegram_chat_id,
         "log_file": str(log_file),
@@ -231,3 +232,43 @@ def test_watchdog_and_recovery_end_to_end(tmp_path, monkeypatch):
     assert updated["status"] == "running"
     assert updated["retryCount"] == 1
     assert recovered == ["demo task text"]
+
+
+def test_watchdog_suppresses_ok_telegram_alerts_by_default(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    state_dir = tmp_path / "state"
+    data_dir.mkdir()
+    state_dir.mkdir()
+
+    config_path = tmp_path / "watchdog.json"
+    log_file = tmp_path / "watchdog.log"
+    _write_config(config_path, data_dir=data_dir, state_dir=state_dir, log_file=log_file)
+
+    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    (data_dir / "demo-agent.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "agent_id": "demo-agent",
+                "run_id": "run-1",
+                "status": "alive",
+                "updated_at": now,
+                "progress_counter": 1,
+                "task_id": "",
+                "task_type": "normal_task",
+                "progress_message": "still running",
+                "last_error": "",
+                "ollama_alive": True,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+
+    cfg = WatchdogConfig.from_file(str(config_path))
+    logger = Logger(log_file=cfg.log_file)
+
+    report, alerts = wd.run_cycle(cfg, logger, 1)
+
+    assert report["total_discovered"] == 1
+    assert alerts == []
