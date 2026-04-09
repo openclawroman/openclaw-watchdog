@@ -32,7 +32,6 @@ def resolve_watchdog_config() -> Path:
     return canonical
 
 
-WATCHDOG_CONFIG = resolve_watchdog_config()
 SPOOL_DIR = Path.home() / ".openclaw" / "workspace" / "state" / "telegram-task-spool"
 
 STALL_SEC = heartbeat_cfg.RECOVERY_STALL_SEC
@@ -252,7 +251,8 @@ def process_once() -> None:
             state["recoveryReason"] = "max_retries_exceeded"
             save_state(state)
             try:
-                cfg = json.loads(WATCHDOG_CONFIG.read_text()) if WATCHDOG_CONFIG.exists() else {}
+                config_path = resolve_watchdog_config()
+                cfg = json.loads(config_path.read_text()) if config_path.exists() else {}
             except Exception:
                 cfg = {}
             alert_text = f"🔴 Main agent exceeded max retries ({MAX_RETRIES}). Task needs human intervention."

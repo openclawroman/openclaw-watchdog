@@ -121,6 +121,8 @@ def _generate_plist(config: WatchdogConfig) -> str:
     <dict>
         <key>PYTHONUNBUFFERED</key>
         <string>1</string>
+        <key>HOME</key>
+        <string>{HOME}</string>
     </dict>
     <key>Nice</key>
     <integer>20</integer>
