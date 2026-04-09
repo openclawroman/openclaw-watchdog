@@ -57,7 +57,7 @@ def check_ollama_alive() -> bool:
         return False
 
 
-def write_heartbeat(agent_id: str, ollama_ok: bool, sessions: int, session_count_changed: bool = False):
+def write_heartbeat(agent_id: str, ollama_ok: bool, sessions: int, progress_counter: int):
     os.makedirs(DATA_DIR, exist_ok=True)
     now = datetime.now(timezone.utc)
     record = {
@@ -66,9 +66,10 @@ def write_heartbeat(agent_id: str, ollama_ok: bool, sessions: int, session_count
         "run_id": f"daemon-{now.strftime('%Y%m%d-%H%M')}",
         "status": "alive" if ollama_ok else "degraded",
         "updated_at": now.isoformat(),
-        "progress_counter": sessions if session_count_changed else sessions,
+        "progress_counter": progress_counter,
         "task_id": None,
         "task_type": "heartbeat_monitor",
+        "progress_message": f"sessions={sessions}",
         "ollama_alive": ollama_ok,
     }
     path = os.path.join(DATA_DIR, f"{agent_id}.json")
@@ -102,13 +103,13 @@ def main():
         
         sessions = count_sessions(agent_id)
         prev_counter = load_prev_counter(agent_id)
-        progress_changed = (sessions != prev_counter)
+        progress_counter = prev_counter + 1 if prev_counter >= 0 else 1
         
-        write_heartbeat(agent_id, ollama_ok, sessions, progress_changed)
+        write_heartbeat(agent_id, ollama_ok, sessions, progress_counter)
         
         mark = "✅" if ollama_ok else "⚠️"
         status_label = "alive" if ollama_ok else "degraded"
-        print(f"  [{i+1:2d}/{len(AGENTS):2d}] {mark} {agent_id}: {status_label} ({sessions} sessions, pc {'changed' if progress_changed else 'same'})")
+        print(f"  [{i+1:2d}/{len(AGENTS):2d}] {mark} {agent_id}: {status_label} ({sessions} sessions, pc {progress_counter})")
     
     print(f"Done. All {len(AGENTS)} heartbeats written.")
 
