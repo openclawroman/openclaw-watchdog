@@ -6,6 +6,15 @@
 - The watchdog and recovery sidecar both read the same config and continue to use `memory/main-task-watch.json` as the task-watch source of truth.
 - Install or relaunch the service with the canonical path so launchd follows the same config the runtime expects.
 
+## Heartbeat Policy
+
+- Heartbeat data files are written locally under `~/.openclaw/workspace/heartbeat/data/`.
+- Heartbeat checks use local Ollama only: `ollama/qwen2.5:3b-hb`.
+- Default heartbeat cadence is `20m`; worker heartbeats use `21m` so they do not bunch together.
+- The scheduler derives a stable per-agent phase offset, so agents keep their own timing instead of firing all at once.
+- If Ollama is unavailable, the heartbeat is marked degraded. There is no paid-model fallback path.
+- Watchdog scans still run every `5m` and classify the written heartbeat files.
+
 ## Telegram Task Spool (Workstream C)
 
 - Spool directory: `~/.openclaw/workspace/state/telegram-task-spool/`

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """heartbeat-daemon.py — write heartbeat data files for all agents.
-Runs every 15 minutes, staggers each agent by 10s.
-Uses only local ollama (qwen2.5:3b) — no paid models.
+Intended to run every 20 minutes via LaunchAgent.
+Uses only local ollama heartbeat model qwen2.5:3b-hb — no paid models.
 """
 
 import json
@@ -15,7 +15,7 @@ HOME = os.path.expanduser("~")
 DATA_DIR = os.path.join(HOME, ".openclaw", "workspace", "heartbeat", "data")
 AGENTS_DIR = os.path.join(HOME, ".openclaw", "agents")
 OLLAMA = "http://127.0.0.1:11434"
-OLLAMA_MODEL = "qwen2.5:3b"
+OLLAMA_MODEL = "qwen2.5:3b-hb"
 
 # All agents that have heartbeat configured
 AGENTS = [
@@ -97,7 +97,7 @@ def main():
     ollama_ok = check_ollama_alive()
     
     for i, agent_id in enumerate(AGENTS):
-        # Stagger: 10 seconds between each agent
+        # Serialize writes a bit so all files do not land at the exact same instant.
         if i > 0:
             time.sleep(10)
         
